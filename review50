@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+
+from signal import SIGINT, signal
+signal(SIGINT, lambda signum, frame: sys.exit(1))
+
+import json
+import os
+import re
+import requests
+import sys
+
+from argparse import ArgumentParser
+from getpass import getpass
+from glob import glob
+from natsort import natsorted, ns
+from requests.auth import HTTPBasicAuth
+from termcolor import cprint
+
+
+def main():
+
+    # Exit on ctrl-c
+    def handler(signum, frame):
+        print()
+        sys.exit(1)
+
+    # Register handler
+    signal(SIGINT, handler)
+
+    # Parse command-line arguments
+    parser = ArgumentParser(description="A command-line tool that initiates a code review.")
+    parser.add_argument("-d", "--description", help="descriptive name for code review")
+    parser.add_argument("-i", "--include", action="append", help="pattern to include")
+    parser.add_argument("-x", "--exclude", action="append", help="pattern to exclude")
+    parser.add_argument("FILE", help="files render", nargs="+")
+    args = parser.parse_args(sys.argv[1:])
+
+    # Get credentials
+    username = None
+    while not username:
+        username = input("GitHub Username: ").strip()
+    password = getpass("Personal Access Token: ")
+
+    # Check for includes
+    includes = []
+    if args.include:
+        for i in args.include:
+            includes.append(re.escape(i).replace("\*", ".*"))
+
+    # Check for excludes
+    excludes = []
+    if args.exclude:
+        for x in args.exclude:
+            excludes.append(re.escape(x).replace("\*", ".*"))
+
+    # Glob patterns lest shell (e.g., Windows) not have done so, ignoring empty patterns
+    paths = []
+    for pattern in args.FILE:
+        if pattern:
+            paths += natsorted(glob(pattern), alg=ns.IGNORECASE)
+
+    # Candidates to render
+    candidates = []
+    for path in paths:
+        if os.path.isfile(path):
+            candidates.append(os.path.abspath(path))
+        elif os.path.isdir(path):
+            files = []
+            for dirpath, dirnames, filenames in os.walk(path):
+                for filename in filenames:
+                    files.append(os.path.abspath(os.path.join(dirpath, filename)))
+            files = natsorted(files, alg=ns.IGNORECASE)
+            candidates += files
+        else:
+            raise RuntimeError("Could not recognize {}.".format(path))
+
+    # Filter candidates
+    files = []
+    for candidate in candidates:
+
+        # Skip implicit exclusions
+        if includes and not re.search(r"^" + r"|".join(includes) + "$", candidate):
+            continue
+
+        # Skip explicit exclusions
+        if excludes and re.search(r"^" + r"|".join(excludes) + "$", candidate):
+            continue
+
+        # Include candidate
+        files.append(candidate)
+
+    # Check for files
+    if not files:
+        sys.exit("Nothing to review.")
+
+    # Length of longest common sub-path
+    prefix = os.path.commonpath(files) if len(files) > 1 else os.path.dirname(files[0])
+
+    # Payload for API
+    payload = {
+        "description": args.description or "",
+        "files": {},
+        "public": False}
+
+    # Add files to payload
+    for file in files:
+        with open(file, "rb") as f:
+            key = file[len(prefix) + 1:]
+            content = f.read().decode("utf-8", "ignore")
+            if "\x00" in content:
+                cprint(f"Excluding {key} because binary", "yellow")
+                continue
+            cprint(f"Including {key}", "yellow")
+            payload["files"][key.replace(os.sep, "_")] = {"content": content}
+
+    # POST /gists
+    try:
+        cprint("Creating gist...", "yellow", end="")
+        sys.stdout.flush()
+        response = requests.post("https://api.github.com/gists", json.dumps(payload), auth=HTTPBasicAuth(username, password))
+        output = json.loads(response.text)
+        assert response.status_code == 201
+        cprint("\rCreated " + output["html_url"], "green")
+    except Exception as e:
+        sys.exit(output["message"])
+
+
+if __name__ == "__main__":
+    main()
