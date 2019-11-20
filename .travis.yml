@@ -1,0 +1,13 @@
+language: python
+python: '3.6'
+install: pip install .
+script: review50 --help
+deploy:
+  provider: pypi
+  user: "$PYPI_USERNAME"
+  password: "$PYPI_PASSWORD"
+  on:
+    branch: master
+notifications:
+  slack:
+    secure: E1FjpYyMkUxP/847e43uRfzQ1g8bNkY+hpD/MQup2chBhQJZLw3pVrD44ni2cbup5yrlA4UzGnk5wQnqhjUnLoUwMzzdisxRCZG3ybEyRCTuhv8kxmdYnC1y9MWCd2PYcF0IygPPiusoM2hNy+8CC9PjFSwnv7opSZ/MU4yMIeLWUbWE9AWFw+66c1ElKt0NZ38h092WLpN7298V4XWxoksRnN8j8HOdNmCXCSZNcLbN26q6APDObSQmaMxytiu56+k3Pet3foOnx/XOQJnKn+tA9GkvNogaGoXurcygrXcC8gHxC18ZCItdQ7LrF8SsxeuCszGTfZd7E4v8JvE9KSGnku0uqFbN6L3rQBb5twMnnPRf5AyqWQ3QBRlxa1Zsn7CSBZzXyzzBRYYTApu6pvs2YucL/x8h6Rtq2WNFukrYeNp2dAFXzMkCWTdCqNzrsfCHhrQbTII8ybOvlJx/6q+GaXc9NXdDSGerru/SXvBvCkW04i/V8gE/+1SxW/Yyi90mDj5aGS3w1KO8siivOQac44bkK+a7xqlfbcQJqG1S8K3YfIrSEple8DXq9Mw40Ex+dx/c5rEoogBUhqpTzmFEKtAx3g8Mv+Fhr0YyDsW74qSS/K8r/mMlD7tpSvhlx1RocwYeLDRXWUVk1yD1KlZzLKUEJ/Efvz0uMQr8+cc=
